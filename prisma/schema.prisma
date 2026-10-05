@@ -1,0 +1,45 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A source document (clinical guideline, research paper, etc.)
+model Document {
+  id           String   @id @default(cuid())
+  title        String
+  /// Publishing body, e.g. "WHO", "NICE", "PubMed", "CDC"
+  sourceBody   String
+  year         Int
+  /// Evidence quality tier: "RCT" | "cohort" | "review" | "expert_opinion"
+  evidenceTier String
+  /// Absolute or relative path to the original PDF on disk
+  filePath     String
+  createdAt    DateTime @default(now())
+
+  chunks Chunk[]
+
+  @@map("Document")
+}
+
+/// A text chunk derived from a Document, with its vector embedding stored in pgvector.
+model Chunk {
+  id         String   @id @default(cuid())
+  documentId String
+  content    String
+  chunkIndex Int
+  /// pgvector column: 1536-dimensional embedding from Gemini embedding model.
+  /// Prisma does not natively support the vector type, so we use Unsupported()
+  /// and write/read this column via raw SQL.
+  embedding  Unsupported("vector(1536)")?
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("Chunk")
+}
