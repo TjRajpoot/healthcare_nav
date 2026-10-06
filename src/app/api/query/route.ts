@@ -8,6 +8,11 @@
 // Uses pgvector's <=> (cosine distance) operator via raw SQL because Prisma
 // does not natively support vector operations.
 
+// Force this route to be server-rendered on every request.
+// Without this, Next.js tries to statically evaluate the route at build time
+// which fails because GEMINI_API_KEY and DATABASE_URL are not available then.
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/lib/db";
 import { embedText } from "@/src/lib/embeddings";
