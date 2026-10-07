@@ -26,6 +26,60 @@ const SUGGESTIONS = [
   "What are the WHO guidelines for asthma management?",
 ];
 
+/* ── Simple Markdown Renderer ──────────────────────────────── */
+function renderMarkdown(md: string): string {
+  let html = md
+    // Escape HTML entities
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    // Headings
+    .replace(/^### (.+)$/gm, '<h4 class="md-h4">$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3 class="md-h3">$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2 class="md-h2">$1</h2>')
+    // Bold and italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
+    // Horizontal rules
+    .replace(/^---$/gm, '<hr class="md-hr" />')
+    // Line breaks: double newline = paragraph break
+    .replace(/\n\n/g, "</p><p>")
+    // Single newlines within paragraphs
+    .replace(/\n/g, "<br />");
+
+  // Wrap in paragraph tags
+  html = "<p>" + html + "</p>";
+
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, "");
+
+  // Convert bullet lists: lines starting with "- "
+  html = html.replace(
+    /(?:<br \/>)?(?:- )(.+?)(?=<br \/>|<\/p>|$)/g,
+    '<li class="md-li">$1</li>'
+  );
+  // Wrap consecutive <li> tags in <ul>
+  html = html.replace(
+    /(<li class="md-li">.*?<\/li>(?:\s*<li class="md-li">.*?<\/li>)*)/g,
+    '<ul class="md-ul">$1</ul>'
+  );
+
+  // Convert numbered lists: lines starting with "1. ", "2. ", etc.
+  html = html.replace(
+    /(?:<br \/>)?(?:\d+\.\s)(.+?)(?=<br \/>|<\/p>|$)/g,
+    '<li class="md-oli">$1</li>'
+  );
+  html = html.replace(
+    /(<li class="md-oli">.*?<\/li>(?:\s*<li class="md-oli">.*?<\/li>)*)/g,
+    '<ol class="md-ol">$1</ol>'
+  );
+
+  return html;
+}
+
 /* ── Icon Components ───────────────────────────────────────── */
 function CrossIcon() {
   return (
@@ -64,12 +118,34 @@ function BotIcon() {
   );
 }
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{
+        width: 14,
+        height: 14,
+        transition: "transform 200ms ease",
+        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+      }}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
 /* ── Main Component ────────────────────────────────────────── */
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openSources, setOpenSources] = useState<Set<string>>(new Set());
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -87,6 +163,18 @@ export default function Home() {
       ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
     }
   }, [input]);
+
+  function toggleSources(msgId: string) {
+    setOpenSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+      } else {
+        next.add(msgId);
+      }
+      return next;
+    });
+  }
 
   /* ── Submit handler ──────────────────────────────────────── */
   async function handleSubmit(question?: string) {
@@ -121,17 +209,15 @@ export default function Home() {
 
       const data = (await res.json()) as {
         question: string;
-        results: Source[];
+        answer: string;
+        sources: Source[];
       };
 
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        text:
-          data.results.length > 0
-            ? `Found ${data.results.length} relevant passage${data.results.length === 1 ? "" : "s"} from the knowledge base.`
-            : "No relevant passages found. Try rephrasing your question or ensure documents have been ingested.",
-        sources: data.results,
+        text: data.answer,
+        sources: data.sources,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
@@ -180,7 +266,7 @@ export default function Home() {
             <h2>Ask a medical question</h2>
             <p>
               Search across clinical guidelines and research papers.
-              Results are ranked by semantic relevance.
+              Get synthesized, evidence-based answers with citations.
             </p>
             <div className="suggestions">
               {SUGGESTIONS.map((s) => (
@@ -205,26 +291,52 @@ export default function Home() {
                   {msg.role === "user" ? "You" : <BotIcon />}
                 </div>
                 <div className="message-body">
-                  <div className="message-bubble">{msg.text}</div>
+                  {msg.role === "assistant" ? (
+                    <div
+                      className="message-bubble md-content"
+                      dangerouslySetInnerHTML={{
+                        __html: renderMarkdown(msg.text),
+                      }}
+                    />
+                  ) : (
+                    <div className="message-bubble">{msg.text}</div>
+                  )}
 
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="sources">
-                      <span className="sources-label">
-                        Retrieved Sources
-                      </span>
-                      {msg.sources.map((src, idx) => (
-                        <div key={src.chunkId} className="source-card">
-                          <div className="source-card-header">
-                            <span className="source-badge">
-                              Chunk {idx + 1}
-                            </span>
-                            <span className="source-distance">
-                              dist: {Number(src.distance).toFixed(4)}
-                            </span>
-                          </div>
-                          <p className="source-content">{src.content}</p>
+                      <button
+                        className="sources-toggle"
+                        onClick={() => toggleSources(msg.id)}
+                        aria-expanded={openSources.has(msg.id)}
+                      >
+                        <span className="sources-label">
+                          {msg.sources.length} Source
+                          {msg.sources.length === 1 ? "" : "s"}
+                        </span>
+                        <ChevronIcon open={openSources.has(msg.id)} />
+                      </button>
+                      {openSources.has(msg.id) && (
+                        <div className="sources-list">
+                          {msg.sources.map((src, idx) => (
+                            <div key={src.chunkId} className="source-card">
+                              <div className="source-card-header">
+                                <span className="source-badge">
+                                  Source {idx + 1}
+                                </span>
+                                <span className="source-distance">
+                                  similarity:{" "}
+                                  {(
+                                    (1 - Number(src.distance)) *
+                                    100
+                                  ).toFixed(1)}
+                                  %
+                                </span>
+                              </div>
+                              <p className="source-content">{src.content}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>

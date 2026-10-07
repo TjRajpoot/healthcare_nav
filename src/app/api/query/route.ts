@@ -3,10 +3,13 @@
 // POST /api/query
 //
 // Accepts: { question: string }
-// Returns: top 5 Chunk rows ordered by cosine distance to the question embedding.
+// Returns: an LLM-synthesized answer (markdown) plus the top 5 source chunks.
 //
-// Uses pgvector's <=> (cosine distance) operator via raw SQL because Prisma
-// does not natively support vector operations.
+// Pipeline:
+//   1. Embed the question via Gemini embeddings
+//   2. Run cosine-similarity search against pgvector
+//   3. Feed retrieved chunks to Gemini to synthesize a formatted answer
+//   4. Return the answer + sources to the frontend
 
 // Force this route to be server-rendered on every request.
 // Without this, Next.js tries to statically evaluate the route at build time
@@ -16,6 +19,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/lib/db";
 import { embedText } from "@/src/lib/embeddings";
+import { synthesizeAnswer } from "@/src/lib/gemini";
 
 const TOP_K = 5;
 
@@ -60,15 +64,24 @@ export async function POST(request: NextRequest) {
       LIMIT ${TOP_K}
     `;
 
+    const sources = results.map((row) => ({
+      chunkId: row.id,
+      documentId: row.document_id,
+      content: row.content,
+      chunkIndex: row.chunk_index,
+      distance: row.distance,
+    }));
+
+    // 4. Synthesize a formatted answer using Gemini.
+    const answer = await synthesizeAnswer(
+      question.trim(),
+      sources.map((s) => ({ content: s.content, chunkIndex: s.chunkIndex }))
+    );
+
     return NextResponse.json({
       question,
-      results: results.map((row) => ({
-        chunkId: row.id,
-        documentId: row.document_id,
-        content: row.content,
-        chunkIndex: row.chunk_index,
-        distance: row.distance,
-      })),
+      answer,
+      sources,
     });
   } catch (error) {
     console.error("[/api/query] Error:", error);

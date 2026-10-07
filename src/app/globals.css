@@ -257,21 +257,46 @@ body {
   border-bottom-left-radius: 4px;
 }
 
-/* ── Source Chunks ──────────────────────────────────────────── */
+/* ── Source Chunks (collapsible) ────────────────────────────── */
 .sources {
   display: flex;
   flex-direction: column;
+  gap: 0;
+  margin-top: 4px;
+}
+
+.sources-toggle {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  margin-top: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--frost);
+  border-radius: var(--radius-sm);
+  background: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-sans);
+}
+
+.sources-toggle:hover {
+  border-color: var(--slate);
+  background: var(--ice);
 }
 
 .sources-label {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--slate);
-  padding-left: 4px;
+}
+
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  animation: fadeUp 250ms ease both;
 }
 
 .source-card {
@@ -315,9 +340,88 @@ body {
 .source-content {
   color: var(--charcoal);
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── Markdown Content ──────────────────────────────────────── */
+.md-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.md-content p {
+  margin-bottom: 0.6em;
+}
+
+.md-content p:last-child {
+  margin-bottom: 0;
+}
+
+.md-content .md-h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  margin: 1em 0 0.4em;
+  letter-spacing: -0.01em;
+}
+
+.md-content .md-h3 {
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--charcoal);
+  margin: 0.9em 0 0.35em;
+}
+
+.md-content .md-h4 {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--graphite);
+  margin: 0.8em 0 0.3em;
+}
+
+.md-content .md-h2:first-child,
+.md-content .md-h3:first-child,
+.md-content .md-h4:first-child {
+  margin-top: 0;
+}
+
+.md-content strong {
+  font-weight: 650;
+  color: var(--charcoal);
+}
+
+.md-content em {
+  font-style: italic;
+}
+
+.md-content .md-code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  background: var(--ice);
+  border: 1px solid var(--frost);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--graphite);
+}
+
+.md-content .md-ul,
+.md-content .md-ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.md-content .md-li,
+.md-content .md-oli {
+  margin-bottom: 0.3em;
+  line-height: 1.55;
+}
+
+.md-content .md-hr {
+  border: none;
+  border-top: 1px solid var(--frost);
+  margin: 0.8em 0;
 }
 
 /* ── Loading Indicator ─────────────────────────────────────── */
