@@ -34,7 +34,14 @@ function getClient(): GoogleGenAI {
 }
 
 const GENERATION_MODEL =
-  process.env.GEMINI_GENERATION_MODEL || "gemini-2.5-flash";
+  process.env.GEMINI_GENERATION_MODEL || "gemini-3.5-flash";
+
+const CANDIDATE_MODELS = [
+  GENERATION_MODEL,
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.8-flash",
+];
 
 /**
  * Given a user question and an array of relevant source passages,
@@ -74,20 +81,30 @@ ${sourcesBlock}
 Please provide a well-structured, evidence-based answer using markdown formatting.`;
 
   const client = getClient();
-  const response = await client.models.generateContent({
-    model: GENERATION_MODEL,
-    contents: userPrompt,
-    config: {
-      systemInstruction: systemPrompt,
-      temperature: 0.3,
-      maxOutputTokens: 1024,
-    },
-  });
+  const modelsToTry = Array.from(new Set(CANDIDATE_MODELS));
+  let lastError: unknown = null;
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned an empty response");
+  for (const model of modelsToTry) {
+    try {
+      const response = await client.models.generateContent({
+        model,
+        contents: userPrompt,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.3,
+          maxOutputTokens: 1024,
+        },
+      });
+
+      const text = response.text;
+      if (text) {
+        return text;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`Model ${model} failed, trying next fallback:`, (err as any)?.message || err);
+    }
   }
 
-  return text;
+  throw lastError || new Error("Gemini returned an empty response");
 }
